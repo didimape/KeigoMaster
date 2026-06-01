@@ -1,11 +1,16 @@
 import joblib
-import os
+from langdetect import detect
+
 # -----------------------
 # LOAD ALREADY TRAINED MODEL
 # -----------------------
 
 model = joblib.load("models/model.pkl")
 vectorizer = joblib.load("models/vectorizer.pkl")
+
+
+
+
 
 
 def predict_sentence(sentence):

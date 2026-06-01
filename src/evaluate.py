@@ -7,6 +7,8 @@ from sklearn.naive_bayes import MultinomialNB
 
 from src.tokenizer import tokenize_japanese
 
+
+
 # -----------------------
 # LOAD DATASET
 # -----------------------
@@ -58,3 +60,11 @@ predictions = model.predict(X_test_vectorized)
 accuracy = accuracy_score(y_test, predictions)
 
 print("Accuracy:", accuracy)
+
+
+from sklearn.metrics import classification_report
+
+print(classification_report(y_test, predictions))
+
+print(model.predict(vectorizer.transform(["ありがとう"])))
+print(model.predict(vectorizer.transform(["お疲れ様でございます"])))
