@@ -1,107 +1,168 @@
-"""La interfaz:
-
-Streamlit
-Flask
-etc."""
-
 import tkinter as tk
 import joblib
 import re
 
 # -----------------------
-# LOAD MODEL + VECTORIZER
+# LOAD MODEL
 # -----------------------
 
 vectorizer = joblib.load("models/vectorizer.pkl")
 model = joblib.load("models/model.pkl")
 
 # -----------------------
-# DETECT JAPANESE
+# JAPANESE CHECK
 # -----------------------
 
 def is_japanese(text):
     return bool(re.search(r'[\u3040-\u30ff\u4e00-\u9fff]', text))
 
+def explain_keigo(text, label):
+    explanations = []
+
+    # Regla 1: honorífico típico
+    if "お" in text or "ご" in text:
+        explanations.append("✔ contiene prefijos honoríficos (お / ご)")
+
+    # Regla 2: verbos típicos de respeto
+    if "なさる" in text or "いらっしゃる" in text:
+        explanations.append("✔ verbo de respeto detectado")
+
+    # Regla 3: 謙譲語 típico
+    if "いたします" in text or "申し上げます" in text:
+        explanations.append("✔ forma humilde (謙譲語) detectada")
+
+    # Regla 4: formalidad general
+    if label == "丁寧語":
+        explanations.append("ℹ lenguaje formal básico (丁寧語)")
+
+    if label == "尊敬語":
+        explanations.append("ℹ lenguaje de respeto hacia otros (尊敬語)")
+
+    if label == "謙譲語":
+        explanations.append("ℹ lenguaje humilde para hablar de uno mismo (謙譲語)")
+
+    return "\n".join(explanations)
+
 # -----------------------
-# PREDICTION FUNCTION
+# COLORS
 # -----------------------
 
-def predict_text():
-    text = text_input.get().strip()
+BG = "#1e1e2e"
+CARD = "#2a2a3c"
+TEXT = "#ffffff"
+ACCENT = "#4cc9f0"
+GOOD = "#2ecc71"
+BAD = "#e74c3c"
+WARN = "#f1c40f"
 
-    # 1. CHECK EMPTY
+# -----------------------
+# PREDICT
+# -----------------------
+
+def predict_text(event=None):
+    text = entry.get().strip()
+
     if not text:
-        result_label.config(text="❌ Escribe algo")
+        update_result("Escribe algo", WARN)
         return
 
-    # 2. CHECK JAPANESE
     if not is_japanese(text):
-        result_label.config(text="❌ No es japonés")
+        update_result("❌ No es japonés", BAD)
         return
 
-    # 3. VECTORIZE
     X = vectorizer.transform([text])
-
-    # 4. PROBABILITY CHECK (IMPORTANT PART)
     proba = model.predict_proba(X)[0]
     max_prob = max(proba)
 
-    # 5. THRESHOLD FILTER
     if max_prob < 0.60:
-        result_label.config(text="❌ No es keigo claro")
+        update_result(f"❌ No es keigo claro ({max_prob:.2f})", WARN)
         return
 
-    # 6. FINAL PREDICTION
-    prediction = model.predict(X)[0]
+    pred = model.predict(X)[0]
 
-    result_label.config(text=f"Resultado: {prediction} ({max_prob:.2f})")
+    explanation = explain_keigo(text, pred)
+
+    final_text = f"{pred} ({max_prob:.2f})\n\n{explanation}"
+
+    update_result(final_text, GOOD)
+
+# -----------------------
+# UI UPDATE
+# -----------------------
+
+def update_result(text, color):
+    result_label.config(text=text, fg=color)
+    confidence_bar.config(width=int(300 * get_confidence()))
+
+def get_confidence():
+    try:
+        text = entry.get().strip()
+        if not text:
+            return 0
+        X = vectorizer.transform([text])
+        return max(model.predict_proba(X)[0])
+    except:
+        return 0
 
 # -----------------------
 # WINDOW
 # -----------------------
 
 window = tk.Tk()
-
-window.title("KeigoMaster")
-
-window.geometry("500x300")
+window.title("KeigoMaster AI")
+window.geometry("600x400")
+window.configure(bg=BG)
 
 # -----------------------
 # TITLE
 # -----------------------
 
-title_label = tk.Label(
+title = tk.Label(
     window,
-    text="KeigoMaster",
-    font=("Arial", 20)
+    text="KeigoMaster AI",
+    font=("Arial", 22, "bold"),
+    bg=BG,
+    fg=ACCENT
 )
+title.pack(pady=20)
 
-title_label.pack(pady=10)
-
-# -----------------------
-# INPUT
-# -----------------------
-
-text_input = tk.Entry(
+subtitle = tk.Label(
     window,
-    width=50,
+    text="Detector de Keigo Japonés",
+    font=("Arial", 12),
+    bg=BG,
+    fg="#aaaaaa"
+)
+subtitle.pack()
+
+# -----------------------
+# INPUT CARD
+# -----------------------
+
+card = tk.Frame(window, bg=CARD, padx=20, pady=20)
+card.pack(pady=30)
+
+entry = tk.Entry(
+    card,
+    width=45,
     font=("Arial", 14)
 )
+entry.pack(pady=10)
 
-text_input.pack(pady=10)
-
-# -----------------------
-# BUTTON
-# -----------------------
-
-predict_button = tk.Button(
-    window,
-    text="Predecir",
+btn = tk.Button(
+    card,
+    text="Analizar",
     command=predict_text,
-    font=("Arial", 12)
+    bg=ACCENT,
+    fg="black",
+    font=("Arial", 12, "bold"),
+    relief="flat",
+    padx=10,
+    pady=5
 )
+btn.pack(pady=10)
 
-predict_button.pack(pady=10)
+
 
 # -----------------------
 # RESULT
@@ -109,11 +170,42 @@ predict_button.pack(pady=10)
 
 result_label = tk.Label(
     window,
-    text="Resultado:",
-    font=("Arial", 14)
+    text="Esperando entrada...",
+    font=("Arial", 14),
+    bg=BG,
+    fg=TEXT,
+    justify="left"
 )
+result_label.pack(pady=10)
 
-result_label.pack(pady=20)
+# -----------------------
+# CONFIDENCE BAR (visual)
+# -----------------------
+
+bar_bg = tk.Frame(window, bg="#444", width=300, height=10)
+bar_bg.pack(pady=10)
+
+confidence_bar = tk.Frame(bar_bg, bg=ACCENT, width=0, height=10)
+confidence_bar.pack(side="left")
+
+# -----------------------
+# FOOTER
+# -----------------------
+
+footer = tk.Label(
+    window,
+    text="AI Keigo Classifier • v1.0",
+    font=("Arial", 10),
+    bg=BG,
+    fg="#666"
+)
+footer.pack(side="bottom", pady=10)
+
+# -----------------------
+# ENTER KEY SUPPORT
+# -----------------------
+
+entry.bind("<Return>", predict_text)
 
 # -----------------------
 # START APP
